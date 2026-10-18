@@ -1,0 +1,25 @@
+{
+  "name": "cachewise-backend",
+  "version": "1.0.0",
+  "description": "CacheWise backend API caching middleware and benchmarking engine",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test tests/**/*.test.js"
+  },
+  "keywords": ["caching", "lru", "lfu", "fifo", "benchmark", "express", "middleware"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongoose": "^8.9.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}
+
