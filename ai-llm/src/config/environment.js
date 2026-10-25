@@ -6,7 +6,7 @@ export const config = {
     nodeEnv: process.env.NODE_ENV || 'development',
     llmProvider: (process.env.LLM_PROVIDER || 'gemini').toLowerCase(),
     geminiApiKey: process.env.GEMINI_API_KEY || '',
-    geminiModel: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
     openaiApiKey: process.env.OPENAI_API_KEY || '',
     openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     llmTimeoutMs: parseInt(process.env.LLM_TIMEOUT_MS, 10) || 8000,
