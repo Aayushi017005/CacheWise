@@ -99,12 +99,12 @@ async function callOpenAI(prompt) {
 export async function requestLlmCompletion(prompt) {
   if (config.llmProvider === 'gemini' && config.geminiApiKey) {
     const content = await callGemini(prompt);
-    if (content) return { content, provider: `Gemini (${config.geminiModel})` };
+    if (content) return { content, provider: 'Gemini AI' };
   }
 
   if ((config.llmProvider === 'openai' || !config.geminiApiKey) && config.openaiApiKey) {
     const content = await callOpenAI(prompt);
-    if (content) return { content, provider: `OpenAI (${config.openaiModel})` };
+    if (content) return { content, provider: 'OpenAI' };
   }
 
   return null;

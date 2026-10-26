@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/backendApi.js';
 import { MetricCard } from '../components/MetricCard.jsx';
 import { CacheControls } from '../components/CacheControls.jsx';
@@ -7,6 +7,7 @@ import { ErrorMessage } from '../components/ErrorMessage.jsx';
 import {
   Activity,
   CheckCircle,
+  CheckCircle2,
   XCircle,
   Zap,
   Clock,
@@ -14,6 +15,10 @@ import {
   ArrowRight,
   RotateCcw,
   Sparkles,
+  Code2,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
 } from 'lucide-react';
 
 export function Dashboard() {
@@ -21,40 +26,78 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Manual Refresh Metrics state
+  const refreshRequestIdRef = useRef(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState(null);
+  const [refreshError, setRefreshError] = useState(null);
+
   // Demo Endpoint state
   const [selectedProductId, setSelectedProductId] = useState('1');
   const [simulatedDelay, setSimulatedDelay] = useState(120);
   const [demoResponse, setDemoResponse] = useState(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoHistory, setDemoHistory] = useState([]);
+  const [showDevDiagnostics, setShowDevDiagnostics] = useState(false);
 
-  const loadStats = async () => {
+  const loadStats = async (isManual = false) => {
+    // Prevent duplicate concurrent requests when clicking Refresh Metrics
+    if (isManual && isRefreshing) return;
+
+    const currentRequestId = ++refreshRequestIdRef.current;
+
+    if (isManual) {
+      setIsRefreshing(true);
+      setRefreshError(null);
+      setRefreshMessage(null);
+    }
+
     try {
       const data = await api.getCacheStats();
-      setStats(data);
-      setError(null);
+
+      // Guard against out-of-order stale responses
+      if (currentRequestId === refreshRequestIdRef.current) {
+        setStats(data);
+        setError(null);
+        if (isManual) {
+          setRefreshMessage('Metrics updated');
+          setTimeout(() => setRefreshMessage(null), 2500);
+        }
+      }
     } catch (err) {
-      setError(err.message);
+      if (currentRequestId === refreshRequestIdRef.current) {
+        if (isManual) {
+          setRefreshError(err.message || 'Unable to refresh metrics. Please verify the backend is running.');
+          setTimeout(() => setRefreshError(null), 4000);
+        } else {
+          setError(err.message);
+        }
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === refreshRequestIdRef.current) {
+        setLoading(false);
+        if (isManual) {
+          setIsRefreshing(false);
+        }
+      }
     }
   };
 
   useEffect(() => {
-    loadStats();
-    // Poll stats periodically for live dashboard updates
-    const interval = setInterval(loadStats, 3000);
+    loadStats(false);
+    // Background polling for live dashboard updates
+    const interval = setInterval(() => loadStats(false), 3000);
     return () => clearInterval(interval);
   }, []);
 
   const handleUpdateConfig = async (newConfig) => {
     await api.updateCacheConfig(newConfig);
-    await loadStats();
+    await loadStats(false);
   };
 
   const handleClearCache = async () => {
     await api.clearCache();
-    await loadStats();
+    await loadStats(false);
     setDemoResponse(null);
     setDemoHistory([]);
   };
@@ -73,7 +116,7 @@ export function Dashboard() {
         },
         ...prev.slice(0, 9),
       ]);
-      await loadStats();
+      await loadStats(false);
     } catch (err) {
       alert(`Demo request failed: ${err.message}`);
     } finally {
@@ -90,7 +133,24 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {error && <ErrorMessage title="Failed to fetch cache stats" message={error} onRetry={loadStats} />}
+      {error && <ErrorMessage title="Failed to fetch cache stats" message={error} onRetry={() => loadStats(true)} />}
+
+      {/* Manual Refresh Feedback / Alert */}
+      {refreshError && (
+        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{refreshError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRefreshError(null)}
+            className="text-amber-400 hover:text-amber-200 text-xs font-medium"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Hero / Overview Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-teal-950/40 border border-slate-800 rounded-2xl p-6 shadow-sm">
@@ -109,13 +169,29 @@ export function Dashboard() {
               Monitor live cache performance and observe how in-memory caching reduces latency for real backend API requests.
             </p>
           </div>
-          <button
-            onClick={loadStats}
-            className="flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors self-start md:self-auto"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Refresh Metrics</span>
-          </button>
+
+          <div className="flex items-center space-x-2 self-start md:self-auto">
+            {refreshMessage && (
+              <span className="text-xs text-emerald-400 flex items-center space-x-1 font-medium bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{refreshMessage}</span>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => loadStats(true)}
+              disabled={isRefreshing}
+              title="Fetch fresh cache metrics from backend"
+              className={`flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
+                isRefreshing
+                  ? 'bg-slate-800/60 text-slate-400 border-slate-700/50 cursor-not-allowed'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 active:scale-95'
+              }`}
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-teal-400' : ''}`} />
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh Metrics'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -187,8 +263,9 @@ export function Dashboard() {
               <Sparkles className="w-5 h-5 text-teal-400" />
               <h3 className="text-base font-semibold text-slate-100">Interactive API Caching Demo</h3>
             </div>
-            <span className="text-[11px] font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded border border-slate-800">
-              GET /api/demo/products/:id
+            {/* User-friendly badge in normal view */}
+            <span className="text-xs text-teal-400/90 font-medium bg-teal-500/10 px-2.5 py-1 rounded-full border border-teal-500/20">
+              Response Cache Sandbox
             </span>
           </div>
 
@@ -242,8 +319,8 @@ export function Dashboard() {
 
             {/* Response Viewer */}
             {demoResponse ? (
-              <div className="bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-800 text-[11px]">
+              <div className="bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800 text-[11px]">
                   <div className="flex items-center space-x-2">
                     <span className="text-slate-400">HTTP Status:</span>
                     <span className="text-emerald-400 font-bold">200 OK</span>
@@ -268,13 +345,56 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <div className="text-slate-400 text-[11px] mb-2">
-                  Cache Key: <span className="text-slate-300">{demoResponse.cacheKey}</span>
+                {/* Clean Product Summary for Normal View */}
+                <div className="font-sans grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-900/50 rounded-lg text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase">Product</span>
+                    <span className="text-slate-200 font-medium">{demoResponse.product?.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase">Category</span>
+                    <span className="text-slate-200">{demoResponse.product?.category}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase">Price</span>
+                    <span className="text-teal-300 font-semibold">${demoResponse.product?.price}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase">Stock</span>
+                    <span className="text-slate-200">{demoResponse.product?.stock} in stock</span>
+                  </div>
                 </div>
 
-                <pre className="text-slate-300 overflow-x-auto p-2 bg-slate-900/50 rounded">
-                  {JSON.stringify(demoResponse.product, null, 2)}
-                </pre>
+                {/* Collapsible Developer/Debug Section */}
+                <div className="border border-slate-800/80 rounded-lg overflow-hidden bg-slate-900/30">
+                  <button
+                    type="button"
+                    onClick={() => setShowDevDiagnostics((prev) => !prev)}
+                    className="w-full flex items-center justify-between p-2.5 text-[11px] font-sans text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Code2 className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Developer Diagnostics & Raw Route Data</span>
+                    </div>
+                    {showDevDiagnostics ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+
+                  {showDevDiagnostics && (
+                    <div className="p-3 border-t border-slate-800 text-[11px] space-y-2 bg-slate-950 font-mono">
+                      <div>
+                        <span className="text-slate-500">Route Endpoint: </span>
+                        <span className="text-teal-300">GET /api/demo/products/{selectedProductId}?delay={simulatedDelay}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Derived Cache Key: </span>
+                        <span className="text-slate-300">{demoResponse.cacheKey}</span>
+                      </div>
+                      <pre className="text-slate-300 overflow-x-auto p-2 bg-slate-900/70 rounded text-[10px] mt-2 border border-slate-800">
+                        {JSON.stringify(demoResponse.product, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="border border-dashed border-slate-800 rounded-lg p-6 text-center text-slate-400 text-xs leading-relaxed">
@@ -321,4 +441,3 @@ export function Dashboard() {
     </div>
   );
 }
-

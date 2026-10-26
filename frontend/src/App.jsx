@@ -101,19 +101,25 @@ export function App() {
               </button>
             </nav>
 
-            {/* Backend Connectivity Status */}
+            {/* Subtle Backend Status Indicator */}
             <div className="hidden md:flex items-center space-x-2 text-xs font-mono">
-              {backendHealth?.online ? (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Backend API Online</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                  <span>Backend API Offline</span>
-                </div>
-              )}
+              <div
+                title={backendHealth?.online ? 'Backend API connected' : 'Backend API unreachable'}
+                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-[11px] font-sans font-medium transition-colors ${
+                  backendHealth?.online
+                    ? 'bg-slate-900 text-slate-300 border-slate-800'
+                    : 'bg-rose-950/40 text-rose-300 border-rose-800/40'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    backendHealth?.online
+                      ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+                      : 'bg-rose-400'
+                  }`}
+                />
+                <span>{backendHealth?.online ? 'Connected' : 'Offline'}</span>
+              </div>
             </div>
           </div>
         </div>

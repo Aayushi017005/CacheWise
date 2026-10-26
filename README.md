@@ -341,7 +341,7 @@ LLM_PROVIDER=gemini
 
 # Google Gemini API Key (Leave empty to use built-in educational engine)
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 
 # Optional OpenAI Configuration
 OPENAI_API_KEY=

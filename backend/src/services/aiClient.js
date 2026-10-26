@@ -32,11 +32,10 @@ export async function fetchBenchmarkInsights(benchmarkData) {
     console.warn(`[AI Client] Notice: AI Microservice unreachable or failed at ${targetUrl} (${error.message}). Providing fallback response.`);
 
     return {
-      explanation: `### AI Insights Offline Notice\nThe AI/LLM Microservice is currently offline at \`${config.aiServiceUrl}\`.\n\nTo enable automated AI explanations:\n1. Ensure the \`ai-llm/\` service is running (\`npm start\` in \`ai-llm/\` on port 5001).\n2. Optionally configure \`GEMINI_API_KEY\` in \`ai-llm/.env\`.\n\n*Empirical benchmark results above remain 100% accurate and measured directly in backend memory.*`,
-      source: 'offline-fallback',
-      provider: 'None (Service Offline)',
+      explanation: `The AI explanation service is currently unavailable. The empirical benchmark measurements shown above are computed directly by the backend engine and remain fully accurate.`,
+      source: 'offline',
+      provider: 'AI unavailable',
       isOffline: true,
     };
   }
 }
-

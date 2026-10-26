@@ -4,6 +4,7 @@ import { BenchmarkTable } from '../components/BenchmarkTable.jsx';
 import { HitRatioChart } from '../components/HitRatioChart.jsx';
 import { LoadingState } from '../components/LoadingState.jsx';
 import { ErrorMessage } from '../components/ErrorMessage.jsx';
+import { AiInsightsViewer } from '../components/AiInsightsViewer.jsx';
 import {
   Play,
   Save,
@@ -299,26 +300,13 @@ export function Benchmark() {
           <HitRatioChart results={benchmarkResult.results} />
 
           {/* AI Insights Card */}
-          {aiLoading && <LoadingState message="AI Microservice analyzing access pattern and trade-offs..." />}
+          {aiLoading && <LoadingState message="Analyzing workload access patterns and trade-offs..." />}
 
           {aiInsights && (
-            <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-teal-500/30 rounded-xl p-6 shadow-md">
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
-                <div className="flex items-center space-x-2">
-                  <Sparkles className="w-5 h-5 text-teal-400" />
-                  <h3 className="text-base font-semibold text-slate-100">
-                    AI Architectural Breakdown
-                  </h3>
-                </div>
-                <span className="text-[11px] font-mono text-teal-300 bg-teal-500/10 px-2.5 py-1 rounded-full border border-teal-500/20">
-                  Provider: {aiInsights.provider}
-                </span>
-              </div>
-
-              <div className="prose prose-invert max-w-none text-xs text-slate-300 leading-relaxed font-sans space-y-3 whitespace-pre-line">
-                {aiInsights.explanation}
-              </div>
-            </div>
+            <AiInsightsViewer
+              insights={aiInsights}
+              benchmark={benchmarkResult}
+            />
           )}
         </div>
       )}

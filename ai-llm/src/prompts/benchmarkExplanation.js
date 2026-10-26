@@ -11,20 +11,28 @@ export function buildBenchmarkPrompt(benchmark) {
   const lru = results.LRU;
   const lfu = results.LFU;
 
-  return `
-You are a Staff Backend Systems Engineer specializing in caching architectures, data structures, and algorithm performance.
+  // Determine if there is a tie for top performance
+  const maxHitRatio = Math.max(fifo.hitRatio, lru.hitRatio, lfu.hitRatio);
+  const winners = ['LRU', 'LFU', 'FIFO'].filter((s) => results[s].hitRatio === maxHitRatio);
+  const isTie = winners.length > 1;
+  const winnerSummary = isTie
+    ? `Tied between ${winners.join(' and ')} (both achieved ${(maxHitRatio * 100).toFixed(2)}% hit ratio)`
+    : `${bestStrategy} (achieved ${(maxHitRatio * 100).toFixed(2)}% hit ratio)`;
 
-Analyze the following empirical cache benchmark results and generate a concise, educational, and technically rigorous explanation for a software engineering candidate.
+  return `
+You are an expert Systems Architect explaining in-memory caching algorithms to a software engineer.
+
+Analyze the following empirical cache benchmark results and generate an educational, readable explanation.
 
 ---
 BENCHMARK CONFIGURATION:
-- Workload Name: ${name || 'Synthetic Cache Workload'}
-- Cache Capacity: ${capacity} entries
-- Default TTL: ${ttlMs ? `${ttlMs} ms` : 'None (capacity eviction only)'}
-- Total Requests: ${requestCount}
+- Workload Description: ${name || 'Simulated Cache Workload'} (Note: This is a synthetic test workload, not production traffic)
+- Cache Capacity: ${capacity} items
+- Default TTL: ${ttlMs ? `${ttlMs} ms` : 'None (eviction solely on capacity)'}
+- Total Requests in Sequence: ${requestCount}
 - Sample Sequence Preview: [${(requestSequencePreview || []).join(', ')}]
 
-MEASURED EMPIRICAL RESULTS:
+MEASURED EMPIRICAL RESULTS (Authoritative - do not invent or alter these values):
 1. FIFO (First-In First-Out):
    - Hits: ${fifo.hits} | Misses: ${fifo.misses} | Evictions: ${fifo.evictions}
    - Hit Ratio: ${(fifo.hitRatio * 100).toFixed(2)}% | Execution Time: ${fifo.executionTimeMs}ms
@@ -37,31 +45,34 @@ MEASURED EMPIRICAL RESULTS:
    - Hits: ${lfu.hits} | Misses: ${lfu.misses} | Evictions: ${lfu.evictions}
    - Hit Ratio: ${(lfu.hitRatio * 100).toFixed(2)}% | Execution Time: ${lfu.executionTimeMs}ms
 
-Empirical Winner: ${bestStrategy}
+Empirical Outcome: ${winnerSummary}
 
 ---
 OUTPUT REQUIREMENTS:
-Provide your explanation in standard Markdown format adhering strictly to these four sections:
+Produce clear, readable markdown adhering to these four sections:
 
-### 1. Performance Summary
-Briefly state the winning strategy (${bestStrategy}) and compare the exact hit ratios achieved by FIFO, LRU, and LFU. Never contradict or round away the measured numbers.
+### Performance Summary
+State the empirical outcome accurately (${winnerSummary}). Never claim an algorithm won alone if there was a tie. Summarize the exact hit ratios achieved by FIFO, LRU, and LFU without contradicting the measured numbers.
 
-### 2. Workload Access Pattern Analysis
-Explain why this specific request sequence resulted in this outcome. Address the presence or absence of:
-- Temporal Locality (accessing recently used items again)
-- Frequency Skew (certain keys accessed disproportionately often)
-- Loop / Cyclic Thrashing (sequences larger than capacity that cause eviction cascading)
+### Workload Access Pattern Analysis
+Explain why this synthetic sequence favored the outcome. Address and explain any relevant technical concepts when introduced:
+- Temporal Locality: The tendency to re-access items that were used in the recent past.
+- Frequency Skew: When a small set of popular keys receives the majority of requests.
+- Cache Thrashing: When an access loop is larger than cache capacity, causing continuous evictions.
 
-### 3. Engineering & Algorithmic Trade-offs
-Discuss the real-world trade-offs between FIFO, LRU, and LFU:
-- FIFO: Minimal pointer overhead, immune to read contention on cache hits, but ignores temporal and frequency signals (Belady's anomaly risk).
-- LRU: Excellent for recency bursts; requires updating doubly linked list pointers on every single read hit (read-write lock contention).
-- LFU: Optimal for stable popularity distributions; risks cache pollution from historical frequency spikes without aging/decay.
+### Engineering & Algorithmic Trade-offs
+Explain the real-world trade-offs between FIFO, LRU, and LFU in plain, accessible English:
+- FIFO: Very low overhead because reads do not mutate cache order, but risks evicting frequently or recently needed data (Belady's anomaly).
+- LRU: Ideal when recent items are requested again, but requires updating pointers on every cache hit, which can introduce write contention in concurrent environments.
+- LFU: Keeps consistently popular items cached, but risks holding onto obsolete items if historical counts remain high without decay.
 
-### 4. Recommended Next Workload
-Suggest a concrete, specific request sequence (e.g., a Zipfian distribution, a loop of length capacity + 1, or a burst of new keys) to test next, explaining what architectural phenomenon it will demonstrate.
+### Recommended Next Workload
+Suggest a concrete follow-up synthetic sequence to test next (such as a cyclic loop or burst of unique keys) and explain the caching behavior it will demonstrate.
 
-Note: Do NOT claim any single caching strategy is universally superior. Focus on how access distribution dictates algorithmic efficiency.
+Style Guidelines:
+- Write in polished, clear, engaging English.
+- Do not repeat the same conclusions across sections.
+- Avoid excessive jargon, malformed lists, and empty generic filler.
+- Do not claim any single caching strategy is universally best.
 `.trim();
 }
-

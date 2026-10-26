@@ -2,51 +2,70 @@ import { buildBenchmarkPrompt } from '../prompts/benchmarkExplanation.js';
 import { requestLlmCompletion } from './llmService.js';
 
 /**
- * Generate a deterministic engineering analysis when LLM credentials are not configured or offline.
+ * Generate a deterministic engineering analysis when live LLM credentials are not configured or offline.
  */
 function generateDeterministicAnalysis(benchmark) {
-  const { name, capacity, results, bestStrategy, requestCount, requestSequencePreview } = benchmark;
+  const { name, capacity, results, bestStrategy, requestCount } = benchmark;
   const fifo = results.FIFO;
   const lru = results.LRU;
   const lfu = results.LFU;
 
-  let patternInsight = '';
-  if (lru.hitRatio > fifo.hitRatio) {
-    patternInsight = 'The workload displays strong **temporal locality**: items accessed recently were frequently requested again before eviction. LRU successfully protected these active items, whereas FIFO evicted them strictly based on their initial arrival time.';
-  } else if (lfu.hitRatio > lru.hitRatio) {
-    patternInsight = 'The workload exhibits **frequency skew (Pareto distribution)**: a small subset of hot keys was repeatedly requested over time. LFU preserved these high-frequency items regardless of how recently they were called, outperforming LRU.';
-  } else if (fifo.hitRatio === lru.hitRatio && lru.hitRatio === lfu.hitRatio) {
-    patternInsight = 'All three strategies achieved identical hit ratios. This typically occurs when the unique working set fits comfortably within the configured capacity, or when the request sequence is completely random with uniform access distribution.';
+  const maxHitRatio = Math.max(fifo.hitRatio, lru.hitRatio, lfu.hitRatio);
+  const winners = ['LRU', 'LFU', 'FIFO'].filter((s) => results[s].hitRatio === maxHitRatio);
+  const isTie = winners.length > 1;
+
+  let outcomeSummary = '';
+  if (isTie) {
+    outcomeSummary = `In this simulated test workload, **${winners.join(' and ')} tied** for the highest performance with an identical hit ratio of **${(maxHitRatio * 100).toFixed(2)}%**.`;
   } else {
-    patternInsight = `The benchmark demonstrated varying performance across eviction policies. ${bestStrategy} performed best under this specific request distribution.`;
+    outcomeSummary = `In this simulated test workload, **${bestStrategy}** delivered the highest performance with a hit ratio of **${(maxHitRatio * 100).toFixed(2)}%**.`;
   }
 
-  return `### 1. Performance Summary
-- **Empirical Winner**: **${bestStrategy}**
-- **LRU Hit Ratio**: ${(lru.hitRatio * 100).toFixed(2)}% (${lru.hits}/${lru.totalRequests} hits, ${lru.evictions} evictions)
-- **LFU Hit Ratio**: ${(lfu.hitRatio * 100).toFixed(2)}% (${lfu.hits}/${lfu.totalRequests} hits, ${lfu.evictions} evictions)
-- **FIFO Hit Ratio**: ${(fifo.hitRatio * 100).toFixed(2)}% (${fifo.hits}/${fifo.totalRequests} hits, ${fifo.evictions} evictions)
+  let patternInsight = '';
+  if (isTie && fifo.hitRatio === lru.hitRatio && lru.hitRatio === lfu.hitRatio) {
+    patternInsight = 'All three caching policies achieved matching hit ratios. This typically occurs when the distinct working set comfortably fits inside cache capacity, or when request keys are evenly distributed without enough repetition to distinguish recency from frequency.';
+  } else if (lru.hitRatio > fifo.hitRatio && lru.hitRatio >= lfu.hitRatio) {
+    patternInsight = 'This simulated workload exhibits **temporal locality**—the principle that items accessed in the recent past are likely to be accessed again in the near future. LRU preserved these active keys in memory, whereas FIFO evicted them strictly based on arrival time regardless of recent accesses.';
+  } else if (lfu.hitRatio > lru.hitRatio && lfu.hitRatio > fifo.hitRatio) {
+    patternInsight = 'This simulated workload exhibits **frequency skew**—a pattern where a subset of popular ("hot") items receives repeated access over time. LFU preserved these frequently called keys even when newer keys arrived, outperforming recency-focused and arrival-based policies.';
+  } else if (isTie && winners.includes('LRU') && winners.includes('LFU')) {
+    patternInsight = 'Both LRU and LFU tied because the sequence combines repeated accesses to active items with stable access frequency, allowing both recency and frequency tracking to protect the working set equally.';
+  } else {
+    patternInsight = `The sequence demonstrated different eviction behaviors across policies, with ${isTie ? winners.join(' and ') : bestStrategy} best suited to this simulated request distribution.`;
+  }
 
-### 2. Workload Access Pattern Analysis
+  return `### Performance Summary
+${outcomeSummary}
+- **LRU (Least Recently Used)**: ${(lru.hitRatio * 100).toFixed(2)}% hit ratio (${lru.hits} hits, ${lru.misses} misses, ${lru.evictions} evictions)
+- **LFU (Least Frequently Used)**: ${(lfu.hitRatio * 100).toFixed(2)}% hit ratio (${lfu.hits} hits, ${lfu.misses} misses, ${lfu.evictions} evictions)
+- **FIFO (First-In, First-Out)**: ${(fifo.hitRatio * 100).toFixed(2)}% hit ratio (${fifo.hits} hits, ${fifo.misses} misses, ${fifo.evictions} evictions)
+
+### Workload Access Pattern Analysis
 ${patternInsight}
-The sequence sample of **${requestCount}** requests with capacity **${capacity}** demonstrates how eviction criteria directly govern backend cache residency.
+This benchmark was evaluated against a simulated test sequence of **${requestCount}** requests with a cache capacity of **${capacity}** entries.
 
-### 3. Engineering & Algorithmic Trade-offs
+Key concepts in this scenario:
+- **Temporal Locality**: Accessing recently used data again. Algorithms that track recency (LRU) protect these items from premature eviction.
+- **Frequency Skew**: Uneven distribution where select keys receive repeated requests. Frequency-aware policies (LFU) prioritize retaining high-count items.
+- **Cache Thrashing**: When an access sequence continuously exceeds cache capacity, triggering repetitive evictions on every call.
+
+### Engineering & Algorithmic Trade-offs
+Each caching algorithm balances algorithmic complexity and access patterns:
 - **FIFO (First-In, First-Out)**:
-  - *Time Complexity*: O(1) reads and writes using a singly/doubly linked queue.
-  - *Pros*: Zero lock contention or node relocation on cache hits.
-  - *Cons*: Ignores frequency and recency; susceptible to *Belady's Anomaly*.
+  - *Time Complexity*: O(1) lookups and insertions using a queue.
+  - *Strengths*: Simple implementation with zero pointer manipulation during cache hits, eliminating write contention under heavy concurrent reads.
+  - *Trade-offs*: Ignores how often or how recently keys are used, risking Belady's anomaly (where larger capacity can paradoxically cause more misses).
 - **LRU (Least Recently Used)**:
-  - *Time Complexity*: O(1) average lookup and eviction using Doubly Linked List + Hash Map.
-  - *Pros*: Natural fit for conversational sessions, web browsing, and recency-skewed microservices.
-  - *Cons*: Requires pointer mutation on every read hit, which introduces write-lock overhead under heavy multithreaded read concurrency.
+  - *Time Complexity*: O(1) average lookup, update, and eviction using a Hash Map and Doubly Linked List.
+  - *Strengths*: Highly effective for web sessions, product views, and conversational queries where recent activity predicts future requests.
+  - *Trade-offs*: Every read hit moves a node to the front of the list, introducing write synchronization overhead in multithreaded environments.
 - **LFU (Least Frequently Used)**:
-  - *Time Complexity*: O(1) using frequency buckets and doubly linked lists.
-  - *Pros*: Retains consistently popular items indefinitely.
-  - *Cons*: History pollution: outdated items with high historical counts occupy cache space unless an aging/decay mechanism is implemented.
+  - *Time Complexity*: O(1) using frequency buckets with doubly linked lists.
+  - *Strengths*: Ideal for stable popularity curves where top resources should remain cached indefinitely.
+  - *Trade-offs*: Stale "historical hot items" can accumulate high counts and refuse to leave cache unless a counter decay or aging mechanism is used.
 
-### 4. Recommended Next Workload
-To test **Cyclic Cache Thrashing**, run a looping sequence of length **${capacity + 1}** (e.g. \`[${Array.from({ length: capacity + 1 }, (_, i) => String.fromCharCode(65 + i)).join(', ')}, ${Array.from({ length: capacity + 1 }, (_, i) => String.fromCharCode(65 + i)).join(', ')}]\`). This reveals how LRU and FIFO suffer a 0% hit ratio due to cyclic evictions!`;
+### Recommended Next Workload
+To observe **Cyclic Cache Thrashing**, run a repeating loop whose unique keys exceed cache capacity by one (e.g. length **${capacity + 1}**). This will demonstrate how sequential loops without temporal overlap can drop LRU and FIFO hit ratios to 0%.`;
 }
 
 /**
@@ -74,8 +93,7 @@ export async function generateBenchmarkInsights(benchmarkData) {
 
   return {
     explanation: fallbackExplanation,
-    source: 'rule-based-analyzer',
-    provider: 'Built-in Educational Engine (Configure GEMINI_API_KEY in ai-llm/.env for live LLM responses)',
+    source: 'educational-fallback',
+    provider: 'Educational fallback',
   };
 }
-

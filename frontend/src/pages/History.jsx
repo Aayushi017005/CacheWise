@@ -3,6 +3,7 @@ import { api } from '../services/backendApi.js';
 import { BenchmarkTable } from '../components/BenchmarkTable.jsx';
 import { LoadingState } from '../components/LoadingState.jsx';
 import { ErrorMessage } from '../components/ErrorMessage.jsx';
+import { AiInsightsViewer } from '../components/AiInsightsViewer.jsx';
 import {
   History as HistoryIcon,
   Database,
@@ -181,12 +182,14 @@ export function History() {
                     )}
 
                     {item.aiInsights && (
-                      <div className="bg-slate-900 border border-purple-500/20 rounded-xl p-5 text-xs text-slate-300 whitespace-pre-line leading-relaxed font-sans">
-                        <div className="flex items-center space-x-2 mb-3 text-purple-400 font-semibold">
-                          <Brain className="w-4 h-4" />
-                          <span>Saved AI Explanation</span>
-                        </div>
-                        {item.aiInsights}
+                      <div className="pt-2">
+                        <AiInsightsViewer
+                          insights={{
+                            explanation: item.aiInsights,
+                            provider: 'Saved Architectural Analysis',
+                          }}
+                          benchmark={item}
+                        />
                       </div>
                     )}
                   </div>
