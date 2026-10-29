@@ -49,6 +49,39 @@ describe('BenchmarkService', () => {
     assert.ok(fifo.executionTimeMs >= 0);
     assert.ok(lru.executionTimeMs >= 0);
     assert.ok(lfu.executionTimeMs >= 0);
+
+    // LRU and LFU share the highest ratio, so there is no unique winner.
+    assert.equal(result.bestStrategy, 'Tie');
+  });
+
+  it('should report a tie when all strategies have zero hits', () => {
+    const result = runBenchmark({
+      name: 'Cyclic Loop (Cache Thrashing)',
+      capacity: 3,
+      ttlMs: 60000,
+      requests: ['A', 'B', 'C', 'D', 'A', 'B', 'C', 'D', 'A', 'B', 'C', 'D'],
+    });
+
+    for (const strategy of ['FIFO', 'LRU', 'LFU']) {
+      assert.equal(result.results[strategy].hits, 0);
+      assert.equal(result.results[strategy].hitRatioPercentage, 0);
+    }
+    assert.equal(result.bestStrategy, 'Tie');
+  });
+
+  it('should keep LFU as the unique winner for the Frequency Skew workload', () => {
+    const result = runBenchmark({
+      name: 'Frequency Skew (Pareto / Hot Items)',
+      capacity: 3,
+      ttlMs: 60000,
+      requests: ['A', 'A', 'A', 'B', 'B', 'C', 'D', 'A', 'A', 'B', 'E', 'A', 'B', 'F'],
+    });
+
+    assert.equal(result.bestStrategy, 'LFU');
+    assert.equal(result.results.LFU.hits, 8);
+    assert.equal(result.results.LFU.hitRatioPercentage, 57.14);
+    assert.ok(result.results.LFU.hitRatio > result.results.LRU.hitRatio);
+    assert.ok(result.results.LFU.hitRatio > result.results.FIFO.hitRatio);
   });
 
   it('should run benchmark on repeated single key correctly', () => {
@@ -65,6 +98,7 @@ describe('BenchmarkService', () => {
       assert.equal(data.evictions, 0);
       assert.equal(data.hitRatio, 0.8);
     }
+
+    assert.equal(result.bestStrategy, 'Tie');
   });
 });
-
