@@ -5,6 +5,8 @@ import { CacheControls } from '../components/CacheControls.jsx';
 import { LoadingState } from '../components/LoadingState.jsx';
 import { ErrorMessage } from '../components/ErrorMessage.jsx';
 import {
+  BarChart3,
+  Database,
   Activity,
   CheckCircle,
   CheckCircle2,
@@ -39,6 +41,26 @@ export function Dashboard() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoHistory, setDemoHistory] = useState([]);
   const [showDevDiagnostics, setShowDevDiagnostics] = useState(false);
+
+  // Saved benchmark summary is separate from live API-cache traffic metrics.
+  const [benchmarkHistory, setBenchmarkHistory] = useState([]);
+  const [benchmarkHistoryLoading, setBenchmarkHistoryLoading] = useState(true);
+  const [benchmarkHistoryError, setBenchmarkHistoryError] = useState(null);
+  const [benchmarkHistoryPersisted, setBenchmarkHistoryPersisted] = useState(false);
+
+  const loadBenchmarkHistory = async () => {
+    setBenchmarkHistoryLoading(true);
+    try {
+      const response = await api.getBenchmarkHistory(50);
+      setBenchmarkHistory(Array.isArray(response.data) ? response.data : []);
+      setBenchmarkHistoryPersisted(Boolean(response.persistedToDb));
+      setBenchmarkHistoryError(null);
+    } catch (err) {
+      setBenchmarkHistoryError(err.message || 'Unable to load saved benchmark history.');
+    } finally {
+      setBenchmarkHistoryLoading(false);
+    }
+  };
 
   const loadStats = async (isManual = false) => {
     // Prevent duplicate concurrent requests when clicking Refresh Metrics
@@ -87,6 +109,13 @@ export function Dashboard() {
     loadStats(false);
     // Background polling for live dashboard updates
     const interval = setInterval(() => loadStats(false), 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    loadBenchmarkHistory();
+    // Refresh the saved benchmark summary periodically without changing live cache metrics.
+    const interval = setInterval(() => loadBenchmarkHistory(), 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -244,6 +273,151 @@ export function Dashboard() {
           color="purple"
         />
       </div>
+
+      {/* Saved Benchmark Overview: sourced from the existing benchmark history API. */}
+      <section className="space-y-4">
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-teal-400" />
+              <h2 className="text-base font-semibold text-slate-100">Benchmark Overview</h2>
+              <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${benchmarkHistoryPersisted
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                {benchmarkHistoryPersisted ? 'MongoDB' : 'In-memory / unavailable'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Summary of saved FIFO, LRU and LFU benchmark runs. These figures are separate from the live API-cache metrics above.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadBenchmarkHistory}
+            disabled={benchmarkHistoryLoading}
+            className="flex items-center justify-center space-x-2 px-3 py-2 text-xs font-medium rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-50"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${benchmarkHistoryLoading ? 'animate-spin' : ''}`} />
+            <span>{benchmarkHistoryLoading ? 'Refreshing...' : 'Refresh Benchmark Data'}</span>
+          </button>
+        </div>
+
+        {benchmarkHistoryError && (
+          <ErrorMessage
+            title="Failed to load benchmark history"
+            message={benchmarkHistoryError}
+            onRetry={loadBenchmarkHistory}
+          />
+        )}
+
+        {(() => {
+          const averageHitRatio = (strategy) => {
+            const values = benchmarkHistory
+              .map((run) => Number(run?.results?.[strategy]?.hitRatioPercentage))
+              .filter((value) => Number.isFinite(value));
+            if (values.length === 0) return '—';
+            return `${(values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2)}%`;
+          };
+          const totalRequestsTested = benchmarkHistory.reduce(
+            (total, run) => total + (Number(run.requestCount) || 0),
+            0
+          );
+
+          return (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <MetricCard
+                  title="Saved Runs"
+                  value={benchmarkHistory.length}
+                  subtitle="Completed runs in history"
+                  icon={Database}
+                  color="blue"
+                />
+                <MetricCard
+                  title="Requests Tested"
+                  value={totalRequestsTested}
+                  subtitle="Across saved benchmark runs"
+                  icon={Activity}
+                  color="purple"
+                />
+                <MetricCard
+                  title="FIFO Avg. Hit Ratio"
+                  value={averageHitRatio('FIFO')}
+                  subtitle="Average across saved runs"
+                  icon={Layers}
+                  color="amber"
+                />
+                <MetricCard
+                  title="LRU Avg. Hit Ratio"
+                  value={averageHitRatio('LRU')}
+                  subtitle="Average across saved runs"
+                  icon={Zap}
+                  color="teal"
+                />
+                <MetricCard
+                  title="LFU Avg. Hit Ratio"
+                  value={averageHitRatio('LFU')}
+                  subtitle="Average across saved runs"
+                  icon={Sparkles}
+                  color="emerald"
+                />
+              </div>
+
+              {benchmarkHistory.length === 0 && !benchmarkHistoryLoading ? (
+                <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-xl p-8 text-center">
+                  <Database className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+                  <p className="text-sm font-medium text-slate-300">No saved benchmark runs yet</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Open Benchmark, execute a workload, and click “Save to History”. This overview will use those saved results.
+                  </p>
+                </div>
+              ) : benchmarkHistory.length > 0 ? (
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-800">
+                    <h3 className="text-sm font-semibold text-slate-100">Recent Benchmark Runs</h3>
+                    <p className="text-xs text-slate-500 mt-1">Showing the latest {Math.min(5, benchmarkHistory.length)} saved runs.</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-950/70 text-slate-400">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Workload</th>
+                          <th className="px-4 py-3 font-medium">Requests</th>
+                          <th className="px-4 py-3 font-medium">FIFO</th>
+                          <th className="px-4 py-3 font-medium">LRU</th>
+                          <th className="px-4 py-3 font-medium">LFU</th>
+                          <th className="px-4 py-3 font-medium">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/80">
+                        {benchmarkHistory.slice(0, 5).map((run) => (
+                          <tr key={run._id} className="text-slate-300">
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-slate-200">{run.name || 'Unnamed workload'}</div>
+                              <div className="text-[10px] text-slate-500 mt-0.5">
+                                Capacity {run.capacity} · {run.createdAt ? new Date(run.createdAt).toLocaleDateString() : 'Date unavailable'}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-mono">{run.requestCount ?? '—'}</td>
+                            <td className="px-4 py-3 font-mono">{Number.isFinite(Number(run.results?.FIFO?.hitRatioPercentage)) ? `${Number(run.results.FIFO.hitRatioPercentage).toFixed(2)}%` : '—'}</td>
+                            <td className="px-4 py-3 font-mono">{Number.isFinite(Number(run.results?.LRU?.hitRatioPercentage)) ? `${Number(run.results.LRU.hitRatioPercentage).toFixed(2)}%` : '—'}</td>
+                            <td className="px-4 py-3 font-mono">{Number.isFinite(Number(run.results?.LFU?.hitRatioPercentage)) ? `${Number(run.results.LFU.hitRatioPercentage).toFixed(2)}%` : '—'}</td>
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-1 rounded bg-teal-500/10 border border-teal-500/20 text-teal-300">
+                                {run.bestStrategy || '—'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          );
+        })()}
+      </section>
 
       {/* Middle Row: Cache Controls + Interactive API Request Demo */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
