@@ -1,10 +1,12 @@
 import React from 'react';
-import { Award, Zap, Clock, ShieldAlert } from 'lucide-react';
+import { Award } from 'lucide-react';
 
 export function BenchmarkTable({ results, bestStrategy }) {
   if (!results) return null;
 
   const strategies = ['LRU', 'LFU', 'FIFO'];
+  const highestHitRatio = Math.max(...strategies.map((strategy) => results[strategy]?.hitRatio ?? -1));
+  const isTie = bestStrategy === 'Tie';
 
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/80">
@@ -24,34 +26,35 @@ export function BenchmarkTable({ results, bestStrategy }) {
           {strategies.map((strat) => {
             const data = results[strat];
             if (!data) return null;
-            const isWinner = strat === bestStrategy;
+            const isTopRatio = data.hitRatio === highestHitRatio;
+            const isWinner = !isTie && strat === bestStrategy;
 
             return (
               <tr
                 key={strat}
                 className={`hover:bg-slate-800/40 transition-colors ${
-                  isWinner ? 'bg-teal-500/5' : ''
+                  isTopRatio ? 'bg-teal-500/5' : ''
                 }`}
               >
                 <td className="py-3.5 px-4 font-sans font-bold text-slate-200">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm">{strat}</span>
-                    {isWinner && (
+                    {isTopRatio && (
                       <span className="flex items-center space-x-1 px-2 py-0.5 text-[10px] rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/40">
                         <Award className="w-3 h-3 text-teal-400" />
-                        <span>Best Ratio</span>
+                        <span>{isTie ? 'Tied Best' : 'Best Ratio'}</span>
                       </span>
                     )}
                   </div>
                 </td>
                 <td className="py-3.5 px-4">
                   <div className="flex items-center space-x-2">
-                    <span className={`text-sm font-bold ${isWinner ? 'text-teal-400' : 'text-slate-200'}`}>
+                    <span className={`text-sm font-bold ${isTopRatio ? 'text-teal-400' : 'text-slate-200'}`}>
                       {data.hitRatioPercentage}%
                     </span>
                     <div className="w-16 bg-slate-800 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className={`h-full ${isWinner ? 'bg-teal-500' : 'bg-slate-500'}`}
+                        className={`h-full ${isTopRatio ? 'bg-teal-500' : 'bg-slate-500'}`}
                         style={{ width: `${Math.min(data.hitRatioPercentage, 100)}%` }}
                       />
                     </div>
@@ -64,6 +67,8 @@ export function BenchmarkTable({ results, bestStrategy }) {
                 <td className="py-3.5 px-4 font-sans">
                   {isWinner ? (
                     <span className="text-teal-400 font-medium">Optimal for workload</span>
+                  ) : isTopRatio && isTie ? (
+                    <span className="text-teal-300 font-medium">Tied best ratio</span>
                   ) : (
                     <span className="text-slate-500">Evaluated</span>
                   )}
@@ -76,4 +81,3 @@ export function BenchmarkTable({ results, bestStrategy }) {
     </div>
   );
 }
-
