@@ -14,7 +14,7 @@ function isCompleteExplanation(text) {
   // Reject common signs of a cut-off response rather than displaying broken prose.
   if (/(?:\*\*|\*|\(|\[)\s*$/.test(text.trim())) return false;
   const lastSection = text.slice(text.lastIndexOf('### Recommended Next Workload'));
-  return lastSection.trim().length >= 80 && /[.!?]`?$/.test(lastSection.trim());
+  return lastSection.trim().length >= 80 && /[.!?]$/.test(lastSection.trim());
 }
 
 /** Generate a deterministic, data-grounded explanation if the LLM is unavailable or incomplete. */
