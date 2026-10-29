@@ -70,16 +70,16 @@ export function runBenchmark({ name = 'Custom Workload', capacity, ttlMs = null,
     LFU: lfuResult,
   };
 
-  // Determine winning strategy by hit ratio
-  let bestStrategy = 'LRU';
-  let bestHitRatio = -1;
+  // Select a winner only when exactly one strategy has the highest hit ratio.
+  // Equal top ratios (including an all-zero benchmark) must be reported as a tie.
+  const highestHitRatio = Math.max(...Object.values(results).map((result) => result.hitRatio));
+  const topStrategies = Object.entries(results)
+    .filter(([, result]) => result.hitRatio === highestHitRatio)
+    .map(([strategy]) => strategy);
 
-  for (const [strategy, res] of Object.entries(results)) {
-    if (res.hitRatio > bestHitRatio) {
-      bestHitRatio = res.hitRatio;
-      bestStrategy = strategy;
-    }
-  }
+  const bestStrategy = topStrategies.length === 1 && highestHitRatio > 0
+    ? topStrategies[0]
+    : 'Tie';
 
   return {
     name,
@@ -93,4 +93,3 @@ export function runBenchmark({ name = 'Custom Workload', capacity, ttlMs = null,
     timestamp: new Date().toISOString(),
   };
 }
-
