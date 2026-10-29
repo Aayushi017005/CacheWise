@@ -21,7 +21,7 @@ async function callGemini(prompt) {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 2048,
         },
       }),
       signal: controller.signal,
@@ -68,7 +68,7 @@ async function callOpenAI(prompt) {
         model: config.openaiModel,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.2,
-        max_tokens: 1024,
+        max_tokens: 2048,
       }),
       signal: controller.signal,
     });
