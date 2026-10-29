@@ -87,7 +87,19 @@ export function AiInsightsViewer({ insights, benchmark }) {
 
   const badge = getProviderBadge();
   const BadgeIcon = badge.icon;
-  const sections = parseSections(explanation);
+  const sections = parseSections(explanation).map((section) => {
+    // Older or truncated AI responses may end immediately after this heading.
+    // Keep the section useful even when the AI provider returns incomplete text.
+    if (section.title === 'Recommended Next Workload' && !section.content.trim()) {
+      const capacity = benchmark?.capacity ?? 3;
+      const requests = benchmark?.requestCount ?? 12;
+      return {
+        ...section,
+        content: `Run a repeating four-key sequence (A, B, C, D) with cache capacity ${capacity}. When capacity is 3, this working set is larger than the cache, so this workload should demonstrate cache thrashing. For the 12-request sequence A, B, C, D repeated three times, expected result at capacity 3 is 0 hits and 12 misses for FIFO, LRU, and LFU.`,
+      };
+    }
+    return section;
+  });
 
   // Markdown component styling mapping
   const markdownComponents = {
