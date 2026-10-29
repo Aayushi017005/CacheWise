@@ -36,12 +36,14 @@ function generateDeterministicAnalysis(benchmark) {
     patternInsight = `Every request was a cache miss for all three policies. With capacity **${capacity}**, this run produced no cache hits, so no policy outperformed the others. If the sequence repeatedly cycles through more unique keys than the cache can hold, this is consistent with cache thrashing.`;
   } else if (fifo.hitRatio === lru.hitRatio && lru.hitRatio === lfu.hitRatio) {
     patternInsight = `All three policies produced the same measured hit ratio for this particular sequence. The results show no performance winner for this run; equal hit ratios do not by themselves prove that the workload fits in cache.`;
-  } else if (lru.hitRatio > fifo.hitRatio && lru.hitRatio >= lfu.hitRatio) {
-    patternInsight = `LRU performed better on this sequence, which is consistent with temporal locality: recently requested keys were useful again before they were evicted.`;
-  } else if (lfu.hitRatio > lru.hitRatio && lfu.hitRatio > fifo.hitRatio) {
-    patternInsight = `LFU performed best on this sequence, which is consistent with frequency skew: repeated requests to popular keys rewarded retaining frequently used items.`;
+  } else if (winners.length > 1) {
+    patternInsight = `${winners.join(' and ')} tied for the highest measured hit ratio at **${(maxHitRatio * 100).toFixed(2)}%** on this sequence. The other policy or policies had a lower hit ratio, so the result is a shared lead rather than a sole winner.`;
+  } else if (winners[0] === 'LRU') {
+    patternInsight = `LRU achieved the highest hit ratio on this sequence, which is consistent with temporal locality: recently requested keys were useful again before they were evicted.`;
+  } else if (winners[0] === 'LFU') {
+    patternInsight = `LFU achieved the highest hit ratio on this sequence, which is consistent with frequency skew: repeated requests to popular keys rewarded retaining frequently used items.`;
   } else {
-    patternInsight = `The measured results differ across policies for this sequence. Compare the request order and each policy's eviction rule to understand why the hit ratios differ.`;
+    patternInsight = `FIFO achieved the highest hit ratio on this sequence. Its insertion-order eviction behavior happened to fit this request order; this result does not mean FIFO is universally best.`;
   }
 
   const preview = requestSequencePreview.length
