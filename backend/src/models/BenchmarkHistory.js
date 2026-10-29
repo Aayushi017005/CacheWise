@@ -45,7 +45,7 @@ const BenchmarkHistorySchema = new mongoose.Schema(
     },
     bestStrategy: {
       type: String,
-      enum: ['FIFO', 'LRU', 'LFU'],
+      enum: ['FIFO', 'LRU', 'LFU', 'Tie'],
       required: true,
     },
     results: {
