@@ -253,7 +253,7 @@ export function Benchmark() {
                 Workload: <span className="text-teal-400">{benchmarkResult.name}</span>
               </h3>
               <p className="text-xs text-slate-400 font-mono mt-0.5">
-                {benchmarkResult.requestCount} requests | Capacity: {benchmarkResult.capacity} | Winner:{' '}
+                {benchmarkResult.requestCount} requests | Capacity: {benchmarkResult.capacity} | {benchmarkResult.bestStrategy === 'Tie' ? 'Result:' : 'Winner:'}{' '}
                 <span className="text-emerald-400 font-bold">{benchmarkResult.bestStrategy}</span>
               </p>
             </div>
