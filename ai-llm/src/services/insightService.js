@@ -72,7 +72,7 @@ The backend evaluated **${requestCount} requests** with a cache capacity of **${
 The best policy depends on the request distribution. A small difference in this synthetic run should not be treated as a universal ranking.
 
 ### Recommended Next Workload
-Keep the same request sequence and set cache capacity to **3** for a four-key cycle: `A, B, C, D, A, B, C, D, A, B, C, D`. Because the loop contains four distinct keys but the cache holds only three, each policy should miss on every request for this repeating order. Expected result: **0 hits, 12 misses, 0.00% hit ratio** for FIFO, LRU, and LFU.`;
+Keep the same request sequence and set cache capacity to **3** for a four-key cycle: **A, B, C, D, A, B, C, D, A, B, C, D**. Because the loop contains four distinct keys but the cache holds only three, each policy should miss on every request for this repeating order. Expected result: **0 hits, 12 misses, 0.00% hit ratio** for FIFO, LRU, and LFU.`;
 }
 
 /**
